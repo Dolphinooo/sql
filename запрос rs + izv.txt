@@ -1,0 +1,27 @@
+SELECT DISTINCT
+  nd.id,
+  rs.json_data -> 'rs' -> 'rsDocument' ->> 'rsNumber' AS rsnumber,
+  rs.json_data -> 'rs' -> 'rsDocument' ->> 'rsDate' AS rsdate,
+  COALESCE (iz.json_data-> 'izvStartSMR' -> 'incomingData' ->> 'buildEndDate' ,
+  rs.json_data -> 'rs' -> 'rsDocument' ->> 'validityPeriodRS',
+  rs. json_data -> 'rs' -> 'rsDocument' ->> 'extendValidityPeriodRS' ):: date AS expected_date,
+  COALESCE (rs.json_data ->'rs' -> 'incomingData' -> 'object' ->>'deloNum',
+  nd.json_data -> 'objectPassport' ->>'deloNum') AS deloNum,
+  rs.json_data -> 'rs' -> 'passportObject' ->> 'fullNameObject' AS full_name_object,
+  COALESCE(
+    nd.json_data -> 'passportObject' -> 'objAddress' ->> 'objAddress',
+    rs.json_data -> 'rs' -> 'passportObject' -> 'address' -> 0 ->> 'landmarkInfo',
+    rs.json_data -> 'rs' -> 'incomingData' -> 'object' -> 'address' -> 0 ->> 'landmarkInfo'
+  ) AS landmark_info,
+  COALESCE(rs.json_data -> 'rs' -> 'incomingData' -> 'applicant' ->> 'orgFullName',
+  nd.json_data -> 'objectPassport' -> 'organizationBuilder' ->> 'orgName' ) AS builder_org_name,
+  nd.json_data -> 'objectPassport' -> 'objFinSourse' ->> 'name' AS objfinsource
+FROM izvstartsmr.documents iz
+LEFT JOIN rs.documents rs 
+  ON rs.json_data -> 'rs' -> 'passportObject' ->> 'objectId' = iz.json_data -> 'izvStartSMR' -> 'incomingData' -> 'object' ->> 'objectId'
+JOIN nadzor.documents nd 
+ON nd.id = iz.json_data -> 'izvStartSMR' -> 'incomingData' -> 'object' ->> 'objectId'
+WHERE COALESCE (iz.json_data-> 'izvStartSMR' -> 'incomingData' ->> 'buildEndDate',
+  rs.json_data -> 'rs' -> 'rsDocument' ->> 'validityPeriodRS',
+  rs. json_data -> 'rs' -> 'rsDocument' ->> 'extendValidityPeriodRS' ) BETWEEN '2025-01-01' AND '2025-12-31' AND
+  rs.json_data -> 'rs' -> 'rsDocument' ->> 'rsNumber' IS NOT NULL
